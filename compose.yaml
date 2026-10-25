@@ -6,27 +6,19 @@ services:
     image: audit-sys:latest
 
     # --- Namespaces partagés avec l'hôte ---------------------------------
-    # Le conteneur voit les processus de l'hôte (ps, et /proc/<pid> pour ss -p).
     pid: host
-    # Le conteneur utilise la pile réseau de l'hôte : ip et ss voient les
-    # vraies interfaces et connexions (et plus seulement eth0 de Docker).
     network_mode: host
-    # uts: host   # NON activé : le script lit /etc/hostname via --racine.
-    #             # À activer seulement si on voulait la commande "hostname".
-
-    # --- Droits (principe du moindre privilège) --------------------------
+    # --- Droits --------------------------
     # ss -p lit /proc/<pid>/fd des processus d'autres utilisateurs : il faut
     # SYS_PTRACE en plus des capacités par défaut de Docker.
     cap_add:
       - SYS_PTRACE
     security_opt:
       # Le profil AppArmor docker-default interdit de "ptracer" des processus
-      # non confinés de l'hôte. A TESTER : essayer sans cette ligne ; si les
-      # PID des connexions sont "Non identifié", elle est nécessaire.
+      # non confinés de l'hôte.
       - apparmor=unconfined
       # Interdit toute élévation de privilèges dans le conteneur.
       - no-new-privileges:true
-    # Pas de --privileged : on n'accorde que ce qui est listé ci-dessus.
 
     # Système de fichiers du conteneur en lecture seule (rien à y écrire)
     read_only: true
@@ -35,16 +27,8 @@ services:
 
     # --- Montages ---------------------------------------------------------
     volumes:
-      # Racine de l'hôte en lecture seule : /etc/os-release, /etc/passwd,
-      # /etc/hostname, /proc... lus via l'option --racine /host du script.
-      # Les sous-montages de l'hôte (partitions) apparaissent aussi sous
-      # /host/..., ce qui permet à "df -P" de les lister.
       - /:/host:ro
-      # Socket de systemd (/run/systemd/private) : permet à systemctl de
-      # dialoguer avec le systemd de l'hôte. Contient aussi les sessions
-      # logind (/run/systemd/sessions) pour les utilisateurs connectés.
       - /run/systemd:/run/systemd:ro
-      # Dossier pour récupérer un JSON (option -o /out/audit.json)
       - ./out:/out
 
     environment:
