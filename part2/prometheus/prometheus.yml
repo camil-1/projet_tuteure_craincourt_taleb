@@ -1,0 +1,35 @@
+# Configuration de Prometheus
+# Vérification : docker compose exec prometheus promtool check config /etc/prometheus/prometheus.yml
+
+global:
+  # Collecte toutes les 15 s (1 min par défaut) : courbes plus fines.
+  scrape_interval: 15s
+  # L'audit est relancé à chaque requête /metrics : il doit répondre en
+  # moins de 10 s (il met environ 0,1 s en pratique).
+  scrape_timeout: 10s
+
+scrape_configs:
+
+  # Les deux agents d'audit
+  - job_name: audit
+    # metrics_path: /metrics   (valeur par défaut)
+    static_configs:
+      # Agent de l'hôte : il utilise le réseau de l'hôte, donc il n'a pas de
+      # nom de service joignable. On passe par l'adresse de l'hôte
+      # (host.docker.internal, défini avec extra_hosts dans compose.yaml).
+      - targets: ["host.docker.internal:9100"]
+        labels:
+          machine: hote
+          type: hote
+      # Agent du conteneur : même réseau Docker que Prometheus, on utilise
+      # donc directement le nom du service de compose.yaml.
+      # (localhost désignerait le conteneur Prometheus lui-même.)
+      - targets: ["agent-conteneur:9101"]
+        labels:
+          machine: agent-conteneur
+          type: conteneur
+
+  # Prometheus se surveille lui-même (utile pour vérifier qu'il fonctionne)
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

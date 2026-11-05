@@ -1,0 +1,15 @@
+# Fournisseur de dashboards : Grafana charge tous les fichiers JSON du dossier
+apiVersion: 1
+
+providers:
+  - name: audit
+    folder: Supervision
+    type: file
+    # Empêche la suppression depuis l'interface (le JSON du dépôt fait foi)
+    disableDeletion: true
+    # Les modifications faites dans l'interface sont autorisées mais non
+    # sauvegardées dans le fichier : il faut ré-exporter le JSON.
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/dashboards

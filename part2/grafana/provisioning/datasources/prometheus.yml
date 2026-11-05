@@ -1,0 +1,18 @@
+# Source de données créée automatiquement au démarrage de Grafana
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    # uid fixe : le dashboard JSON y fait référence
+    uid: prometheus-audit
+    access: proxy
+    # Adresse du service Prometheus vue depuis le conteneur Grafana
+    # (et non localhost:9090, qui serait le conteneur Grafana lui-même)
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      # Doit correspondre au scrape_interval de prometheus.yml : Grafana
+      # s'en sert pour calculer $__rate_interval
+      timeInterval: 15s

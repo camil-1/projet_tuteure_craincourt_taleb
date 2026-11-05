@@ -1,0 +1,96 @@
+# Lancement : docker compose up -d --build
+# Prérequis : créer secrets/grafana_admin_password.txt (voir le .example)
+
+name: supervision
+
+services:
+
+  # Agent qui audite la machine hôte
+  agent-hote:
+    build: .
+    image: audit-sys:2.0
+    pid: host
+    network_mode: host          # non joignable par son nom : Prometheus passe par host.docker.internal
+    cap_add:
+      - SYS_PTRACE              # ss -p sur les processus de l'hôte
+    security_opt:
+      - apparmor=unconfined
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - /:/host:ro              # lu via --racine /host
+      - /run/systemd:/run/systemd:ro
+    environment:
+      SYSTEMD_IGNORE_CHROOT: "1"
+    command: ["--racine", "/host", "--port", "9100", "--services", "ssh,cron,docker"]
+    restart: unless-stopped
+
+  # Agent qui audite son propre conteneur (aucun accès à l'hôte)
+  agent-conteneur:
+    build: .
+    image: audit-sys:2.0
+    hostname: agent-conteneur
+    user: "65534:65534"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    mem_limit: 256m             # non visible dans /proc/meminfo (voir rapport)
+    networks:
+      - supervision
+    command: ["--port", "9101", "--services", "cron,ssh"]
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.5.5
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - supervision
+    ports:
+      - "127.0.0.1:9090:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:12.4.14
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/audit.json
+    secrets:
+      - grafana_admin_password
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+    networks:
+      - supervision
+    ports:
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
+
+networks:
+  supervision:
+
+volumes:
+  prometheus-data:
+  grafana-data:
+
+secrets:
+  grafana_admin_password:
+    file: ./secrets/grafana_admin_password.txt
